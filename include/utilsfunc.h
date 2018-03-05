@@ -1,4 +1,4 @@
-/* 
+/*
  * Various utility functions.
  * Copyright (C) 2003-2009 Petr Kubanek <petr@kubanek.net>
  * Copyright (C) 2011-2013 Petr Kubanek, Institute of Physics <kubanek@fzu.cz>
@@ -354,7 +354,7 @@ void getNight (time_t curr_time, struct ln_lnlat_posn *observer, double nightHor
 
 /**
  * Normalize over-the-pole RaDec. On GEM and all other models mounts, which can cross the pole, the usuall
- * notation which should be used for crossed pole is to keep counting dec. This leads to absolute dec values 
+ * notation which should be used for crossed pole is to keep counting dec. This leads to absolute dec values
  * > 90. This functions normalized such over-the-pole values.
  */
 void normalizeRaDec (double &ra, double &dec);
@@ -408,5 +408,10 @@ int parseVariableName (const char *name, char **device, char **variable);
  * @param parate calculated object paralactic rate (in degrees/hours)
  */
 void parallacticAngle (double ha, double dec, double sin_lat, double cos_lat, double tan_lat, double &pa, double &parate);
+
+/**
+ * Dump a backtrace to stdout.
+ */
+void print_backtrace();
 
 #endif							 /* !__RTS_UTILSFUNC__ */
