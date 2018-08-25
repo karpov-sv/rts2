@@ -625,3 +625,23 @@ void print_backtrace() {
 }
 
 /* end SK added */
+
+void sph2cart (double a, double b, double *xyz)
+{
+	double cb = cos (b);
+	xyz[0] = cos (a) * cb;
+	xyz[1] = sin (a) * cb;
+	xyz[2] = sin (b);
+}
+
+void cart2sph (double *xyz, double &a, double &b)
+{
+	double r = sqrt (xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2]);
+	a = asin (xyz[2] / r);
+	b = atan2 (xyz[1], xyz[0]);
+}
+
+double posangle (double *xyz0, double *xyz1)
+{
+	return atan2 (xyz1[1] * xyz0[0] - xyz1[0] * xyz0[1], xyz1[2] * ( xyz0[0] * xyz0[0] + xyz0[1] * xyz0[1] ) - xyz0[2] * ( xyz1[0] * xyz0[0] + xyz1[1] * xyz1[0] ));
+}

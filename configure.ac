@@ -418,6 +418,21 @@ AC_SUBST(ARC)
 AC_SUBST(LIB_ARC)
 AC_SUBST(INC_ARC)
 
+# check for ASI SDK
+AC_ARG_WITH(asi,
+[  --with-asi                ASI SDK path],
+ASI="${withval}";
+ASI_INCLUDE=${ASI}/include;
+AS_IF([test `uname -i` == 'x86_64'], [ASI_LIB=${ASI}/lib/x64],
+	[AS_IF([test `uname -i` == 'i686'], [ASI_LIB=${ASI}/lib/x86])]
+),
+[ASI=no])
+
+AM_CONDITIONAL(ASI, test x$ASI != xno)
+AC_SUBST(ASI)
+AC_SUBST(ASI_INCLUDE)
+AC_SUBST(ASI_LIB)
+
 # for Alta we need special library:(
 AC_ARG_WITH(alta,
 [  --with-alta             path to Apogee Alta CCD driver, build Apogee Alta CCD driver],
@@ -860,6 +875,7 @@ AC_SUBST(DATE)
 debug=""
 AC_SUBST(debug)
 
+
 AH_TEMPLATE([HAVE_PGSQL],[Whenever PGSQL is installed])
 AH_TEMPLATE([HAVE_PGSQL_8], [If PGSQL version is 8 or higher])
 AH_TEMPLATE([HAVE_PGSQL_9], [If PGSQL version is 9 or higher])
@@ -873,8 +889,14 @@ AS_IF([test "x"$psql = xyes], [
   PG_MAJOR=`$PG_CONFIG --version | sed 's/PostgreSQL //' | sed 's/\..*$//'`
   PG_MINOR=`$PG_CONFIG --version | sed 's/PostgreSQL [[0-9]]*\.//' | sed 's/\..*$//'`
 
-  ECPG_MAJOR=`$ECPG --version | sed 's/ecpg (PostgreSQL //' | sed 's/\..*$//'`
-  ECPG_MINOR=`$ECPG --version | sed 's/ecpg (PostgreSQL [[0-9]]*\.//' | sed 's/\..*$//'`
+  AC_MSG_CHECKING(for PostgreSQL version)
+  AC_MSG_RESULT(${PG_MAJOR}.${PG_MINOR})
+
+  ECPG_MAJOR=`$ECPG --version | sed 's/ecpg \(([^\)]*)\) //' | sed 's/\..*$//'`
+  ECPG_MINOR=`$ECPG --version | sed 's/ecpg \(([^)]*)\) [0-9]?\.//' | sed 's/\..*$//'`
+
+  AC_MSG_CHECKING(for ECPG version)
+  AC_MSG_RESULT(${ECPG_MAJOR}.${ECPG_MINOR})
 
   AC_DEFINE_UNQUOTED(HAVE_PGSQL, 1, [Whenever PGSQL is installed])
 
@@ -891,6 +913,8 @@ AS_IF([test "x"$psql = xyes], [
   AS_IF([test $PG_MAJOR -eq 8 -a $PG_MINOR -gt 2], [
     AC_DEFINE_UNQUOTED(HAVE_PGSQL_SET_VARSIZE, 1, [If PGSQL provides SET_VARSIZE function])
   ])
+], [
+  AC_MSG_RESULT(no)
 ])
 
 AM_CONDITIONAL(PGSQL, test x$psql = xyes)
@@ -985,6 +1009,8 @@ AC_OUTPUT([Makefile
 	   include/xmlrpc++/Makefile
 	   include/pluto/Makefile
 	   include/sep/Makefile
+	   include/ucac5/Makefile
+	   include/gtp/Makefile
 	   conf/Makefile
 	   conf/event.d/Makefile
 	   conf/rts2.service
@@ -1009,11 +1035,14 @@ AC_OUTPUT([Makefile
 	   lib/rts2tel/Makefile
 	   lib/libindi/Makefile
 	   lib/sep/Makefile
+	   lib/ucac5/Makefile
+	   lib/gtp/Makefile
 	   python/Makefile
 	   python/rts2/Makefile
 	   python/rts2/db/Makefile
 	   scripts/Makefile
 	   src/Makefile
+	   src/axisd/Makefile
 	   src/bckimages/Makefile
 	   src/camd/Makefile
 	   src/camd/urvc2/Makefile
@@ -1057,6 +1086,7 @@ AC_OUTPUT([Makefile
 	   src/catd/Makefile
 	   src/thrift/Makefile
 	   src/redis/Makefile
+	   src/ucac5/Makefile
 	   tests/Makefile
 	   checks/Makefile
 	   checks/data/Makefile
@@ -1107,6 +1137,7 @@ CCDs:
   sbig include  ${SBIG_INC}
   sbig lib      ${SBIG_LIB}
   SI3097        ${SI3097}
+  ASI           ${ASI}
 
 MOUNTs:
   paralib       ${PARALIB}

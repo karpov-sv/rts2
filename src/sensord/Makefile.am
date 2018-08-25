@@ -2,7 +2,7 @@ bin_PROGRAMS = rts2-sensor-dummy rts2-sensor-multi rts2-sensor-ms257 rts2-sensor
 	rts2-sensor-phytron rts2-sensor-ds21 rts2-sensor-mrakomer rts2-sensor-pixy rts2-sensor-davis-udp \
 	rts2-sensor-fram-weather rts2-sensor-bart-rain rts2-sensor-ms260 rts2-sensor-l150 \
 	rts2-sensor-osn rts2-sensor-system rts2-sensor-apcups rts2-sensor-nut \
-	rts2-sensor-cloud4 rts2-sensor-brooks-356 rts2-sensor-bootes1 rts2-sensor-aag rts2-sensor-pwc \
+	rts2-sensor-cloud2 rts2-sensor-cloud4 rts2-sensor-brooks-356 rts2-sensor-bootes1 rts2-sensor-aag rts2-sensor-pwc \
 	rts2-sensor-hygrowin rts2-sensor-fram rts2-sensor-flwo-weather rts2-sensor-flwo-me rts2-sensor-thorlaser rts2-sensor-thorlabs-PM100D \
 	rts2-sensor-arduino rts2-sensor-mdm-bait rts2-sensor-colores rts2-sensor-micropirani-925 rts2-sensor-dws-t5 \
 	rts2-sensor-cryocon rts2-sensor-keithley-scpi rts2-sensor-colamp \
@@ -10,8 +10,8 @@ bin_PROGRAMS = rts2-sensor-dummy rts2-sensor-multi rts2-sensor-ms257 rts2-sensor
 	rts2-sensor-mm2500 rts2-sensor-lakeshore-330 rts2-sensor-lakeshore-340 \
 	rts2-sensor-agilent-e3631a rts2-sensor-aws-mlab \
 	rts2-sensor-thermocube rts2-sensor-reinhardt rts2-sensor-davis \
-	rts2-sensor-servodrive-r272 rts2-sensor-tbt rts2-sensor-binder \
-	rts2-sensor-saao rts2-sensor-cpx400
+	rts2-sensor-tbt rts2-sensor-binder \
+	rts2-sensor-saao rts2-sensor-cpx400 rts2-sensor-afg
 
 noinst_HEADERS = davisudp.h fram-weather.h framudp.h davis.h aag.h pwc-ioctl.h tps534-oak.h
 
@@ -42,6 +42,8 @@ rts2_sensor_ds21_SOURCES = ds21.cpp
 
 rts2_sensor_mrakomer_SOURCES = mrakomer.cpp
 
+rts2_sensor_cloud2_SOURCES = cloud2.cpp
+
 rts2_sensor_cloud4_SOURCES = cloud4.cpp
 
 rts2_sensor_pixy_SOURCES = pixy.cpp
@@ -51,8 +53,6 @@ rts2_sensor_davis_udp_SOURCES = davisudpmain.cpp davisudp.cpp
 rts2_sensor_fram_weather_SOURCES = fram-weather.cpp framudp.cpp
 
 rts2_sensor_bart_rain_SOURCES = bart-rain.cpp
-
-#rts2_sensor_mrakomer_move_SOURCES = mrakomer-move.cpp
 
 rts2_sensor_osn_SOURCES = osn.cpp
 
@@ -98,6 +98,8 @@ rts2_sensor_saao_SOURCES = saao.cpp
 rts2_sensor_saao_LDADD = -L../../lib/xmlrpc++ -lrts2xmlrpc ${LDADD}
 
 rts2_sensor_cpx400_SOURCES = cpx400.cpp
+
+rts2_sensor_afg_SOURCES = afg.cpp
 
 if LIBJSONCPP
 
@@ -152,8 +154,6 @@ rts2_sensor_thermocube_SOURCES = thermocube.cpp
 rts2_sensor_reinhardt_SOURCES = reinhardt.cpp
 
 rts2_sensor_davis_SOURCES = davis.cpp
-
-rts2_sensor_servodrive_r272_SOURCES = servodrive-r272.cpp
 
 rts2_sensor_tbt_SOURCES = tbt.cpp
 

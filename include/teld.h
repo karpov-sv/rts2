@@ -533,6 +533,7 @@ class Telescope:public rts2core::Device
 		void setTarTelRaDec (struct ln_equ_posn *pos);
 		void setTarTelAltAz (struct ln_hrz_posn *hrz);
 		void setModelTarAltAz (struct ln_hrz_posn *hrz);
+		void getModelTarAltAz (struct ln_hrz_posn *hrz);
 
 		/**
 		 * Set WCS reference values telescope is reporting.
@@ -605,7 +606,7 @@ class Telescope:public rts2core::Device
 		 * @param haMargin       margin (in degrees) for which HA axis must be allowed to move in sidereal tracking
 		 * @param forceShortest  if true, shortest path wlll be taken - desired flipping will be ignored
 		 */
-		int calculateTarget (const double utc1, const double utc2, struct ln_equ_posn *out_tar, int32_t &ac, int32_t &dc, bool writeValues, double haMargin, bool forceShortest);
+		int calculateTarget (const double utc1, const double utc2, struct ln_equ_posn *out_tar, struct ln_hrz_posn *out_hrz, int32_t &ac, int32_t &dc, bool writeValues, double haMargin, bool forceShortest);
 
 		/**
 		 * Calculate speed vector from arc of given duration.
@@ -630,13 +631,14 @@ class Telescope:public rts2core::Device
                  *
                  * @param JD		date for which transformation will be valid
                  * @param pos		target position (sky position, excluding precession, refraction, and corections ...)
+		 * @param hrz_out       modelled horizontal coordinates
 		 * @param ac		current (input) and target (output) HA axis counts value
 		 * @param dc		current (input) and target (output) DEC axis counts value
 		 * @param writeValues   when true, RTS2 values will be updated to reflect new target values
                  * @param haMargin      ha value (in degrees), for which mount must be allowed to move
 		 * @param forceShortest if true, shortest path will be taken - desired flipping will be ignored
 		 */
-		virtual int sky2counts (const double uct1, const double utc2, struct ln_equ_posn *pos, int32_t &ac, int32_t &dc, bool writeValue, double haMargin, bool forceShortest);
+		virtual int sky2counts (const double uct1, const double utc2, struct ln_equ_posn *pos, struct ln_hrz_posn *hrz_out, int32_t &ac, int32_t &dc, bool writeValue, double haMargin, bool forceShortest);
 
 		void addDiffRaDec (struct ln_equ_posn *tar, double secdiff);
 		void addDiffAltAz (struct ln_hrz_posn *hrz, double secdiff);
@@ -898,6 +900,8 @@ class Telescope:public rts2core::Device
 		 * Load model from telescope.
 		 */
 		virtual int loadModel () { return -1; }
+
+		int loadModelStream (std::istream &is);
 
 		virtual int resetMount () { return 0; }
 
