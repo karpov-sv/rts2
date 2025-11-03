@@ -213,6 +213,8 @@ class AstrometryScript:
 					solve_field.append(extension)
 				solve_field.append('--verify')
 				solve_field.append(self.odir+'/input-solved.fits')
+				# We need to copy original FITS file again, to avoid it being downsampled twice
+				shutil.copy(self.fits_file, self.infpath)
 			else:
 				# No verification phase
 				break
