@@ -1,4 +1,4 @@
-/* 
+/*
  * Pure TCP connection.
  * Copyright (C) 2009 Petr Kubanek <petr@kubanek.net>
  *
@@ -31,7 +31,17 @@ ConnTCP::ConnTCP (rts2core::Block *_master, const char *_hostname, int _port):Co
 {
 	port = _port;
 	debug = false;
-	reconnectTime = 60;
+	reconnectTime = 10;
+
+	// Initialize reconnection members
+	reconnectAttempt = 0;
+	maxReconnectAttempts = -1;      // Unlimited by default (backward compatible)
+	lastDisconnectTime = 0;
+	autoReconnect = true;           // Enabled by default (backward compatible)
+	useExponentialBackoff = false;  // Disabled by default (backward compatible)
+	backoffMultiplier = 2.0;
+	maxBackoffTime = 3600.0;        // 1 hour max
+	minBackoffTime = reconnectTime; // Same as base reconnect time
 }
 
 ConnTCP::ConnTCP (rts2core::Block *_master, int _port):ConnNoSend (_master), hostname ("")
@@ -39,6 +49,16 @@ ConnTCP::ConnTCP (rts2core::Block *_master, int _port):ConnNoSend (_master), hos
 	port = _port;
 	debug = false;
 	reconnectTime = 60;
+
+	// Initialize reconnection members
+	reconnectAttempt = 0;
+	maxReconnectAttempts = -1;      // Unlimited by default (backward compatible)
+	lastDisconnectTime = 0;
+	autoReconnect = true;           // Enabled by default (backward compatible)
+	useExponentialBackoff = false;  // Disabled by default (backward compatible)
+	backoffMultiplier = 2.0;
+	maxBackoffTime = 3600.0;        // 1 hour max
+	minBackoffTime = reconnectTime; // Same as base reconnect time
 }
 
 bool ConnTCP::checkBufferForChar (std::istringstream **_is, char end_char)
@@ -89,7 +109,7 @@ int ConnTCP::init (bool reportConn)
 		if (ret)
 			throw ConnCreateError (this, "cannot bind on socket", errno);
 
-		// listen 
+		// listen
 		ret = listen (sock, 1);
 		if (ret)
 			throw ConnCreateError (this, "cannot listen on socket", errno);
@@ -135,10 +155,20 @@ int ConnTCP::init (bool reportConn)
 		logStream (MESSAGE_INFO) << "opened listening port " << port << sendLog;
 	}
 	else
-	{   
+	{
 		setConnState (CONN_CONNECTED);
-		if (reportConn)
+
+		if (reconnectAttempt > 0 && reportConn)
+		{
+			logStream (MESSAGE_INFO)
+				<< "Reconnected to " << hostname << ":" << port
+				<< " after " << reconnectAttempt << " attempts" << sendLog;
+			resetReconnectState ();
+		}
+		else if (reportConn)
+		{
 			logStream (MESSAGE_INFO) << "connected to " << hostname << ":" << port << " socket " << sock << sendLog;
+		}
 	}
         return 0;
 }
@@ -276,7 +306,7 @@ void ConnTCP::receiveTillEnd (char *data, size_t len, int wtime)
 void ConnTCP::receiveData (std::istringstream **_is, int wtime, char end_char)
 {
 	// check if buffer contains end character..
-	
+
 	fd_set read_set;
 
 	struct timeval read_tout;
@@ -334,14 +364,31 @@ void ConnTCP::postEvent (Event *event)
 		case EVENT_TCP_RECONECT_TIMER:
 			if (event->getArg () != this)
 				break;
+
+			logStream (MESSAGE_INFO)
+				<< "Attempting reconnection to " << hostname << ":" << port
+				<< " (attempt " << reconnectAttempt;
+			if (maxReconnectAttempts > 0)
+				logStream (MESSAGE_INFO) << "/" << maxReconnectAttempts;
+			logStream (MESSAGE_INFO) << ")" << sendLog;
+
 			try
 			{
-				init ();
+				init (false);  // Don't log here, we'll log below
+
+				// Success!
+				logStream (MESSAGE_INFO)
+					<< "Successfully reconnected to " << hostname << ":" << port
+					<< " after " << reconnectAttempt << " attempts and "
+					<< (getNow () - lastDisconnectTime) << "s" << sendLog;
+				resetReconnectState ();
 			}
 			catch (ConnError &er)
 			{
-				logStream (MESSAGE_WARNING) << "error during reconnecting: " << er << sendLog;
-				// new alarm was already created from ConnectionError
+				logStream (MESSAGE_WARNING)
+					<< "Reconnection attempt " << reconnectAttempt
+					<< " failed: " << er << sendLog;
+				// connectionError() will be called, scheduling next attempt
 			}
 			break;
 	}
@@ -350,7 +397,111 @@ void ConnTCP::postEvent (Event *event)
 
 void ConnTCP::connectionError (int last_data_size)
 {
-	if (sock > 0 && reconnectTime > 0)
-		getMaster()->addTimer (reconnectTime, new Event (EVENT_TCP_RECONECT_TIMER, this));
+	// Record disconnect time on first error
+	if (reconnectAttempt == 0 && autoReconnect && reconnectTime > 0)
+	{
+		lastDisconnectTime = getNow ();
+		logStream (MESSAGE_WARNING)
+			<< "Connection to " << hostname << ":" << port
+			<< " lost, initiating reconnection" << sendLog;
+	}
+
+	// Check if should attempt reconnection
+	if (shouldAttemptReconnect ())
+	{
+		double nextInterval = calculateNextReconnectTime ();
+		reconnectAttempt++;
+
+		// Log scheduling
+		logStream (MESSAGE_INFO)
+			<< "Scheduling reconnection attempt " << reconnectAttempt;
+		if (maxReconnectAttempts > 0)
+			logStream (MESSAGE_INFO) << "/" << maxReconnectAttempts;
+		logStream (MESSAGE_INFO)
+			<< " in " << nextInterval << "s (elapsed: "
+			<< (getNow () - lastDisconnectTime) << "s)" << sendLog;
+
+		getMaster ()->addTimer (nextInterval, new Event (EVENT_TCP_RECONECT_TIMER, this));
+	}
+	else if (autoReconnect && reconnectAttempt > 0)
+	{
+		// Max attempts reached
+		logStream (MESSAGE_ERROR)
+			<< "Max reconnection attempts (" << maxReconnectAttempts
+			<< ") reached for " << hostname << ":" << port
+			<< " after " << (getNow () - lastDisconnectTime) << "s" << sendLog;
+		resetReconnectState ();
+	}
+
 	ConnNoSend::connectionError (last_data_size);
+}
+
+bool ConnTCP::shouldAttemptReconnect ()
+{
+	if (!autoReconnect || reconnectTime <= 0)
+		return false;
+
+	conn_state_t state = getConnState ();
+	if (state != CONN_BROKEN && state != CONN_UNKNOW)
+		return false;
+
+	if (maxReconnectAttempts == 0)
+		return false;
+
+	if (maxReconnectAttempts > 0 && reconnectAttempt >= maxReconnectAttempts)
+		return false;
+
+	if (hostname.length () == 0)  // Server connections don't reconnect
+		return false;
+
+	return true;
+}
+
+double ConnTCP::calculateNextReconnectTime ()
+{
+	if (!useExponentialBackoff)
+		return reconnectTime;
+
+	double interval = minBackoffTime;
+	for (int i = 0; i < reconnectAttempt; i++)
+	{
+		interval *= backoffMultiplier;
+		if (interval >= maxBackoffTime)
+			return maxBackoffTime;
+	}
+	return interval;
+}
+
+void ConnTCP::resetReconnectState ()
+{
+	reconnectAttempt = 0;
+	lastDisconnectTime = 0;
+}
+
+double ConnTCP::getTimeSinceDisconnect () const
+{
+	if (lastDisconnectTime == 0)
+		return 0;
+	return getNow () - lastDisconnectTime;
+}
+
+void ConnTCP::setMaxReconnectAttempts (int maxAttempts)
+{
+	maxReconnectAttempts = maxAttempts;
+}
+
+void ConnTCP::setExponentialBackoff (bool enable, double multiplier, double maxBackoff)
+{
+	useExponentialBackoff = enable;
+	backoffMultiplier = multiplier;
+	maxBackoffTime = maxBackoff;
+	minBackoffTime = reconnectTime;
+}
+
+void ConnTCP::resetReconnect ()
+{
+	resetReconnectState ();
+	logStream (MESSAGE_INFO)
+		<< "Reconnection state manually reset for " << hostname << ":" << port
+		<< sendLog;
 }

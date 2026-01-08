@@ -97,6 +97,18 @@ class DevConnectionMaster:public Connection
 		int authorize (DevConnection * conn);
 
 		virtual void setConnState (conn_state_t new_conn_state);
+
+		/**
+		 * Set reconnection time interval.
+		 * @param time Reconnection interval in seconds (default: 10)
+		 */
+		void setReconnectTime (int time) { reconnectTime = time; }
+
+		/**
+		 * Get reconnection time interval.
+		 * @return Reconnection interval in seconds
+		 */
+		int getReconnectTime () const { return reconnectTime; }
 	protected:
 		virtual int command ();
 		virtual void setState (rts2_status_t in_value, char * msg);
@@ -112,6 +124,9 @@ class DevConnectionMaster:public Connection
 		int device_type;
 		int device_port;
 		time_t nextTime;
+		int reconnectAttempt;      // Track reconnection attempts
+		time_t lastDisconnectTime; // Time when connection was lost
+		int reconnectTime;         // Reconnection interval in seconds (default: 10)
 
 		Device *master;
 };

@@ -249,6 +249,11 @@ DevConnectionMaster::DevConnectionMaster (Device * _master, char *_device_host, 
 
 	setOtherType (DEVICE_TYPE_SERVERD);
 
+	// Initialize reconnection tracking
+	reconnectAttempt = 0;
+	lastDisconnectTime = 0;
+	reconnectTime = 10;  // Default: 10 seconds
+
 	// set state to broken, so we can wait for server reconnecting
 	setConnState (CONN_BROKEN);
 	time (&nextTime);
@@ -275,6 +280,25 @@ void DevConnectionMaster::connConnected ()
 			return;
 		}
 	}
+
+	// Log successful (re)connection
+	if (reconnectAttempt > 0)
+	{
+		time_t now;
+		time (&now);
+		logStream (MESSAGE_INFO) << "Successfully reconnected to centrald at " << master_host << ":" << master_port
+			<< " after " << reconnectAttempt << " attempts and "
+			<< (now - lastDisconnectTime) << "s" << sendLog;
+
+		// Reset reconnection tracking
+		reconnectAttempt = 0;
+		lastDisconnectTime = 0;
+	}
+	else
+	{
+		logStream (MESSAGE_INFO) << "Connected to centrald at " << master_host << ":" << master_port << sendLog;
+	}
+
 	setConnState (CONN_AUTH_PENDING);
 	queSend (new CommandRegister (getMaster (), getCentraldNum (), device_name, device_type, device_host, device_port));
 }
@@ -290,8 +314,16 @@ void DevConnectionMaster::connectionError (int last_data_size)
 	{
 		setConnState (CONN_BROKEN);
 		master->centraldConnBroken (this);
+
+		// Record disconnect time and reset attempt counter
+		time (&lastDisconnectTime);
+		reconnectAttempt = 0;
+
+		logStream (MESSAGE_WARNING) << "Connection to centrald at " << master_host << ":" << master_port
+			<< " lost, will attempt reconnection" << sendLog;
+
 		time (&nextTime);
-		nextTime += 60;
+		nextTime += reconnectTime;  // Use configurable reconnect time
 	}
 }
 
@@ -354,7 +386,13 @@ int DevConnectionMaster::idle ()
 			setConnTimeout (0);
 			if (now > nextTime)
 			{
-				nextTime = now + 60;
+				nextTime = now + reconnectTime;  // Use configurable reconnect time
+				reconnectAttempt++;
+
+				logStream (MESSAGE_INFO) << "Attempting to reconnect to centrald at " << master_host << ":" << master_port
+					<< " (attempt " << reconnectAttempt << ", elapsed: "
+					<< (now - lastDisconnectTime) << "s)" << sendLog;
+
 				init ();
 			}
 			break;

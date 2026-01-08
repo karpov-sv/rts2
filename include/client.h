@@ -47,16 +47,47 @@ class ConnClient:public Connection
 {
 	private:
 		NetworkAddress * address;
+		time_t nextTime;  // Next reconnection attempt time
+		bool autoReconnect;  // Enable/disable automatic reconnection
+		int reconnectTime;  // Reconnection interval in seconds (default: 10)
 
 	protected:
 		virtual void connConnected ();
+		virtual bool canDelete () { return !autoReconnect; }  // Keep for reconnection if enabled
+		virtual void connectionError (int last_data_size);
+
 	public:
 		ConnClient (Block *_master, int _centrald_num, char *_name);
 		virtual ~ ConnClient (void);
 
 		virtual int init ();
+		virtual int idle ();
 
 		virtual void setAddress (NetworkAddress * in_addr);
+
+		/**
+		 * Enable/disable automatic reconnection for this device connection.
+		 * @param enable True to enable reconnection (disabled by default)
+		 */
+		void setAutoReconnect (bool enable) { autoReconnect = enable; }
+
+		/**
+		 * Check if automatic reconnection is enabled.
+		 * @return True if reconnection is enabled
+		 */
+		bool getAutoReconnect () const { return autoReconnect; }
+
+		/**
+		 * Set reconnection time interval.
+		 * @param time Reconnection interval in seconds (default: 10)
+		 */
+		void setReconnectTime (int time) { reconnectTime = time; }
+
+		/**
+		 * Get reconnection time interval.
+		 * @return Reconnection interval in seconds
+		 */
+		int getReconnectTime () const { return reconnectTime; }
 
 		/**
 		 * Set client key.
@@ -83,11 +114,26 @@ class ConnCentraldClient:public Connection
 	public:
 		ConnCentraldClient (Block * in_master, const char *in_login, const char *in_name, const char *in_password, const char *in_master_host, const char *in_master_port);
 		virtual int init ();
+		virtual int idle ();
 
 		virtual int command ();
 
+		/**
+		 * Set reconnection time interval.
+		 * @param time Reconnection interval in seconds (default: 10)
+		 */
+		void setReconnectTime (int time) { reconnectTime = time; }
+
+		/**
+		 * Get reconnection time interval.
+		 * @return Reconnection interval in seconds
+		 */
+		int getReconnectTime () const { return reconnectTime; }
+
 	protected:
 		virtual void setState (rts2_status_t in_value, char * msg);
+		virtual bool canDelete () { return false; }  // Keep for reconnection
+		virtual void connectionError (int last_data_size);
 
 	private:
 		const char *master_host;
@@ -95,6 +141,9 @@ class ConnCentraldClient:public Connection
 
 		const char *login;
 		const char *password;
+
+		time_t nextTime;  // Next reconnection attempt time
+		int reconnectTime;  // Reconnection interval in seconds (default: 10)
 };
 
 class CommandLogin:public Command

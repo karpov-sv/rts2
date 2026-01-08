@@ -137,6 +137,49 @@ class ConnTCP:public ConnNoSend
 		void setReconnectTime (float _reconnectTime) { reconnectTime = _reconnectTime; }
 
 		/**
+		 * Set maximum number of reconnection attempts.
+		 * @param maxAttempts Maximum attempts (-1 = unlimited, 0 = disable reconnect, >0 = limit)
+		 */
+		void setMaxReconnectAttempts(int maxAttempts);
+
+		/**
+		 * Enable/disable exponential backoff for reconnection.
+		 * @param enable Enable exponential backoff
+		 * @param multiplier Backoff multiplier (default: 2.0)
+		 * @param maxBackoff Maximum backoff time in seconds (default: 3600)
+		 */
+		void setExponentialBackoff(bool enable, double multiplier = 2.0, double maxBackoff = 3600.0);
+
+		/**
+		 * Get current reconnection attempt count.
+		 * @return Current attempt number (0 if not reconnecting)
+		 */
+		int getReconnectAttempt() const { return reconnectAttempt; }
+
+		/**
+		 * Get time elapsed since last disconnect.
+		 * @return Seconds since disconnect (0 if connected)
+		 */
+		double getTimeSinceDisconnect() const;
+
+		/**
+		 * Manually reset reconnection state (e.g., after successful reconnect or manual intervention).
+		 */
+		void resetReconnect();
+
+		/**
+		 * Enable/disable auto-reconnection feature entirely.
+		 * @param enable Enable auto-reconnection
+		 */
+		void setAutoReconnect(bool enable) { autoReconnect = enable; }
+
+		/**
+		 * Check if currently in reconnecting state.
+		 * @return True if reconnection attempts are in progress
+		 */
+		bool isReconnecting() const { return reconnectAttempt > 0; }
+
+		/**
 		 * Send data to TCP/IP socket.
 		 *
 		 * @param data   Data to send to the socket.
@@ -209,6 +252,23 @@ class ConnTCP:public ConnNoSend
 
 		bool debug;
 		float reconnectTime;
+
+		// Reconnection state tracking
+		int reconnectAttempt;           // Current reconnection attempt count (0 = not reconnecting)
+		int maxReconnectAttempts;       // Maximum reconnection attempts (-1 = unlimited, 0 = disabled, >0 = limit)
+		double lastDisconnectTime;      // Timestamp of last disconnect (for logging time since disconnect)
+		bool autoReconnect;             // Whether auto-reconnection is enabled
+
+		// Exponential backoff parameters
+		bool useExponentialBackoff;     // Enable exponential backoff
+		double backoffMultiplier;       // Multiplier for exponential backoff (default: 2.0)
+		double maxBackoffTime;          // Maximum backoff time in seconds (default: 3600 = 1 hour)
+		double minBackoffTime;          // Minimum backoff time in seconds (default: same as reconnectTime)
+
+		// Helper methods
+		double calculateNextReconnectTime();  // Calculate next reconnect interval
+		void resetReconnectState();           // Reset reconnection counters
+		bool shouldAttemptReconnect();        // Check if should continue attempting
 
 		bool checkBufferForChar (std::istringstream **_is, char end_char);
 };

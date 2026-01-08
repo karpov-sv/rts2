@@ -42,6 +42,10 @@ ConnClient::ConnClient (Block * in_master, int _centrald_num, char *_name):Conne
 	setName (_centrald_num, _name);
 	setConnState (CONN_RESOLVING_DEVICE);
 	address = NULL;
+	autoReconnect = false;  // Disabled by default
+	reconnectTime = 10;     // Default: 10 seconds
+	time (&nextTime);
+	nextTime -= 1;  // Immediate first attempt
 }
 
 ConnClient::~ConnClient (void)
@@ -112,6 +116,60 @@ void ConnClient::setKey (int in_key)
 		// kill all runinng commands
 		queSend (new CommandSendKey (master, master->getSingleCentralConn ()->getCentraldId (), getCentraldNum (), in_key));
 	}
+}
+
+void ConnClient::connectionError (int last_data_size)
+{
+	if (sock > 0)
+	{
+		close (sock);
+		sock = -1;
+	}
+	if (autoReconnect && !isConnState (CONN_BROKEN))
+	{
+		setConnState (CONN_BROKEN);
+		logStream (MESSAGE_WARNING) << "Connection to device " << getName () << " lost, will attempt reconnection" << sendLog;
+		time (&nextTime);
+		nextTime += reconnectTime;  // Retry after reconnectTime seconds
+	}
+	else if (!autoReconnect)
+	{
+		// Default behavior - let connection be deleted
+		Connection::connectionError (last_data_size);
+	}
+}
+
+int ConnClient::idle ()
+{
+	time_t now;
+	time (&now);
+
+	if (autoReconnect)
+	{
+		switch (getConnState ())
+		{
+			case CONN_BROKEN:
+				setConnTimeout (0);
+				if (now > nextTime)
+				{
+					nextTime = now + reconnectTime;
+					logStream (MESSAGE_INFO) << "Attempting to reconnect to device " << getName () << sendLog;
+					if (address)
+					{
+						init ();
+					}
+					else
+					{
+						logStream (MESSAGE_WARNING) << "Cannot reconnect to " << getName () << " - no address" << sendLog;
+					}
+				}
+				break;
+			default:
+				setConnTimeout (300);
+				break;
+		}
+	}
+	return Connection::idle ();
 }
 
 ConnClient * Client::createClientConnection (int _centrald_num, char *_deviceName)
@@ -225,6 +283,10 @@ ConnCentraldClient::ConnCentraldClient (Block * in_master, const char *in_login,
 	password = in_password;
 
 	setOtherType (DEVICE_TYPE_SERVERD);
+
+	reconnectTime = 10;  // Default: 10 seconds
+	time (&nextTime);
+	nextTime -= 1;  // Immediate first attempt
 }
 
 int ConnCentraldClient::init ()
@@ -292,6 +354,46 @@ void ConnCentraldClient::setState (rts2_status_t in_value, char * msg)
 {
 	Connection::setState (in_value, msg);
 	master->setMasterState (this, in_value);
+}
+
+void ConnCentraldClient::connectionError (int last_data_size)
+{
+	if (sock > 0)
+	{
+		close (sock);
+		sock = -1;
+	}
+	if (!isConnState (CONN_BROKEN))
+	{
+		setConnState (CONN_BROKEN);
+		master->centraldConnBroken (this);
+		logStream (MESSAGE_WARNING) << "Connection to centrald lost, will attempt reconnection" << sendLog;
+		time (&nextTime);
+		nextTime += reconnectTime;  // Retry after reconnectTime seconds
+	}
+}
+
+int ConnCentraldClient::idle ()
+{
+	time_t now;
+	time (&now);
+
+	switch (getConnState ())
+	{
+		case CONN_BROKEN:
+			setConnTimeout (0);
+			if (now > nextTime)
+			{
+				nextTime = now + reconnectTime;
+				logStream (MESSAGE_INFO) << "Attempting to reconnect to centrald" << sendLog;
+				init ();
+			}
+			break;
+		default:
+			setConnTimeout (300);
+			break;
+	}
+	return Connection::idle ();
 }
 
 CommandLogin::CommandLogin (Block * in_master, const char *in_login, const char *name, const char *in_password):Command (in_master)
